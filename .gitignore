@@ -1,0 +1,43 @@
+# Виртуальное окружение
+venv/
+.venv/
+env/
+
+# Переменные окружения и секреты
+.env
+.env.local
+.env.*.local
+
+# Ключи сервисного аккаунта Google (приватные ключи)
+*excel-factory*.json
+*-credentials*.json
+*service-account*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE и редакторы
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Логи и временные файлы
+*.log
+*.tmp
+.cache/
+
+# ОС
+.DS_Store
+Thumbs.db
