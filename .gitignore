@@ -12,6 +12,9 @@ env/
 *excel-factory*.json
 *-credentials*.json
 *service-account*.json
+client_secret_307413857228-3ljotgjhgm59rd3fm8uqg4bnphugpa1g.apps.googleusercontent.com.json
+# OAuth2 токен пользователя (Drive)
+token_drive_user.json
 
 # Python
 __pycache__/
