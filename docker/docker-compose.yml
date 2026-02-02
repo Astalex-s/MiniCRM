@@ -1,5 +1,5 @@
-# Запуск: из корня проекта:  docker compose -f docker/docker-compose.yml up --build
-# Или из папки docker:      docker compose -f docker-compose.yml up --build  (из корня: docker compose -f docker/docker-compose.yml up)
+# Одна команда (из корня): .\docker\run.ps1
+# Или: docker compose -f docker/docker-compose.yml up --build -d
 services:
   crm-api:
     build:
@@ -9,8 +9,20 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Монтируем код в контейнер: правки на хосте сразу видны, uvicorn --reload перезапускает приложение
       - ..:/app
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  crm-frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: excelio-crm-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - API_PROXY_TARGET=http://crm-api:8000
+    depends_on:
+      - crm-api
     restart: unless-stopped

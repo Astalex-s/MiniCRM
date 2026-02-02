@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from .database import CRMDatabase
 from .models import (
@@ -35,6 +36,14 @@ logger = get_logger("crm.api")
 
 app = FastAPI(title="Mini CRM API", version="0.1.0")
 db = CRMDatabase(str(DB_PATH))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.middleware("http")
@@ -243,6 +252,17 @@ def task_complete(task_id: int, completed: bool = Query(True)):
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
     return row
+
+
+@app.get("/")
+def root():
+    """Корневой путь: информация об API и ссылки."""
+    return {
+        "app": "Mini CRM API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")

@@ -45,6 +45,10 @@ logs/
 *.tmp
 .cache/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
 # ОС
 .DS_Store
 Thumbs.db

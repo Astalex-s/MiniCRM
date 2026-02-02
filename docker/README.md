@@ -1,33 +1,41 @@
-# Docker: CRM API (FastAPI)
+# Docker: CRM (API + веб-интерфейс)
 
-## Одна команда для запуска
+## Одна команда: контейнеры + браузер
 
 Из **корня проекта** (EXCELIO):
-
-```powershell
-docker compose -f docker/docker-compose.yml up --build
-```
-
-Или через скрипт (из любой папки, скрипт сам перейдёт в корень):
 
 ```powershell
 .\docker\run.ps1
 ```
 
-Для фонового режима: `docker compose -f docker/docker-compose.yml up --build -d`
+Скрипт:
+1. Собирает и запускает контейнеры **crm-api** (порт 8000) и **crm-frontend** (порт 5173).
+2. Ждёт готовности фронтенда (до ~45 сек).
+3. Открывает в браузере **http://localhost:5173**.
 
-## Что настроено
+Требуется запущенный **Docker Engine**.
 
-- **Dockerfile** — образ на Python 3.11, установка зависимостей, `uvicorn crm.main:app --reload --host 0.0.0.0`.
-- **docker-compose.yml** — сборка из корня проекта, порт 8000, **монтирование кода** (`..:/app`): правки на хосте сразу попадают в контейнер.
-- **Watchdog** — `uvicorn --reload` (через `uvicorn[standard]` / watchfiles) перезапускает приложение при изменении файлов. Контейнер и Compose перезапускать не нужно.
+## Вручную
+
+```powershell
+cd D:\MyStudy\ZEROCODER\PROJECTS\EXCELIO
+docker compose -f docker/docker-compose.yml up --build -d
+```
+
+После запуска откройте в браузере: http://localhost:5173
+
+## Сервисы
+
+| Сервис        | Порт | Описание                    |
+|---------------|------|-----------------------------|
+| **crm-api**   | 8000 | FastAPI, SQLite, монтирование кода, `--reload` |
+| **crm-frontend** | 5173 | React (Vite), прокси `/api` → crm-api:8000     |
 
 ## Остановка
-
-`Ctrl+C` в терминале или в другом окне:
 
 ```powershell
 docker compose -f docker/docker-compose.yml down
 ```
 
-API после запуска: http://localhost:8000, документация: http://localhost:8000/docs
+API: http://localhost:8000  
+Документация API: http://localhost:8000/docs

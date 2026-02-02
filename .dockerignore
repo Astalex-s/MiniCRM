@@ -17,4 +17,5 @@ logs
 .DS_Store
 Thumbs.db
 docker
+frontend
 README.md
