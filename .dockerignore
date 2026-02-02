@@ -1,0 +1,20 @@
+# Не копировать в образ (при запуске через Compose код монтируется с хоста)
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+.idea
+.vscode
+*.log
+logs
+.env
+.env.*
+*.db
+.DS_Store
+Thumbs.db
+docker
+README.md

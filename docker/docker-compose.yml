@@ -1,0 +1,16 @@
+# Запуск: из корня проекта:  docker compose -f docker/docker-compose.yml up --build
+# Или из папки docker:      docker compose -f docker-compose.yml up --build  (из корня: docker compose -f docker/docker-compose.yml up)
+services:
+  crm-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: excelio-crm-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Монтируем код в контейнер: правки на хосте сразу видны, uvicorn --reload перезапускает приложение
+      - ..:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
