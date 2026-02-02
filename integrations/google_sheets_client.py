@@ -18,8 +18,8 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Загрузка .env из папки проекта (рядом с этим файлом)
-_env_path = Path(__file__).resolve().parent / ".env"
+# Загрузка .env из корня проекта
+_env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path)
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -80,12 +80,19 @@ class GoogleSheetsClient:
     def _resolve_credentials_path(self, path: str | Path | None) -> Path:
         if path is not None:
             return Path(path)
+        import os
+        env_path = os.environ.get("GOOGLE_CREDENTIALS_PATH") or os.environ.get("CREDENTIALS_PATH")
+        if env_path:
+            return Path(env_path)
         cwd = Path(__file__).resolve().parent
         for f in cwd.glob("*excel-factory*.json"):
             return f
+        config_dir = cwd.parent / "config"
+        for f in config_dir.glob("*excel-factory*.json"):
+            return f
         raise FileNotFoundError(
             "Не найден JSON-ключ сервисного аккаунта. "
-            "Укажите credentials_path явно или положите файл *excel-factory*.json в папку с модулем."
+            "Укажите credentials_path явно или положите файл *excel-factory*.json в папку config/ или integrations/."
         )
 
     def _build_service(self):

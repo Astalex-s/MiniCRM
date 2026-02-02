@@ -6,11 +6,14 @@
 """
 
 import random
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 from tkinter import Tk, Frame, Label, Entry, Button, ttk, messagebox, StringVar
 
-# Конфигурация и клиент Google Таблиц
-from google_sheets_client import GoogleSheetsClient, get_config_from_env
+# Корень проекта в path для импорта integrations
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from integrations.google_sheets_client import GoogleSheetsClient, get_config_from_env
 
 
 # Типы отчётов и структура данных для симуляции

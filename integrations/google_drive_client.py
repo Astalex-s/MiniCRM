@@ -25,8 +25,8 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Загрузка .env из папки проекта
-_env_path = Path(__file__).resolve().parent / ".env"
+# Загрузка .env из корня проекта
+_env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path)
 
 # Скоупы для Drive API
@@ -91,10 +91,13 @@ class GoogleDriveClient:
         cwd = Path(__file__).resolve().parent
         for f in cwd.glob("*excel-factory*.json"):
             return f
+        config_dir = cwd.parent / "config"
+        for f in config_dir.glob("*excel-factory*.json"):
+            return f
         raise FileNotFoundError(
             "Не найден JSON-ключ сервисного аккаунта. "
             "Укажите credentials_path явно, задайте GOOGLE_CREDENTIALS_PATH в .env "
-            "или положите файл *excel-factory*.json в папку с модулем."
+            "или положите файл *excel-factory*.json в папку config/ или integrations/."
         )
 
     def _build_service(self):
@@ -227,10 +230,13 @@ def _resolve_client_secret_path(path: Optional[Union[str, Path]] = None) -> Path
     cwd = Path(__file__).resolve().parent
     for f in cwd.glob("*client_secret*.json"):
         return f
+    config_dir = cwd.parent / "config"
+    for f in config_dir.glob("*client_secret*.json"):
+        return f
     raise FileNotFoundError(
         "Не найден client_secret JSON для OAuth2. "
         "Укажите client_secret_path явно, задайте GOOGLE_CLIENT_SECRET_PATH в .env "
-        "или положите файл *client_secret*.json в папку с модулем."
+        "или положите файл *client_secret*.json в папку config/ или integrations/."
     )
 
 

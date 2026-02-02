@@ -36,6 +36,9 @@ build/
 *.swp
 *.swo
 
+# CRM SQLite
+crm.db
+
 # Логи и временные файлы
 *.log
 *.tmp
