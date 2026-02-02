@@ -14,7 +14,10 @@ if str(ROOT) not in sys.path:
 from tkinter import Tk, Toplevel, Frame, Label, Entry, Button, ttk, messagebox, StringVar, BooleanVar
 from tkinter import scrolledtext
 
+from log import setup_logging, get_logger
 from gui import api
+
+logger = get_logger("gui.crm")
 
 
 def _err(msg):
@@ -543,6 +546,8 @@ class TasksTab(Frame):
 # ---------- Главное окно ----------
 
 def main():
+    setup_logging(log_file="gui.log", console=False)
+    logger.info("CRM GUI started")
     root = Tk()
     root.title("Мини-CRM")
     root.geometry("900x560")

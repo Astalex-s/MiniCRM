@@ -2,10 +2,11 @@
 FastAPI-бэкенд мини-CRM.
 Эндпоинты для клиентов, сделок и задач.
 """
+import sys
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 
 from .database import CRMDatabase
 from .models import (
@@ -23,8 +24,32 @@ from .models import (
 # Файл БД рядом с пакетом crm
 DB_PATH = Path(__file__).resolve().parent.parent / "crm.db"
 
+# Корень проекта в path для импорта log
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from log import setup_logging, get_logger
+
+setup_logging(log_file="crm.log", console=True)
+logger = get_logger("crm.api")
+
 app = FastAPI(title="Mini CRM API", version="0.1.0")
 db = CRMDatabase(str(DB_PATH))
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Логирование входящих запросов и ответов."""
+    method = request.method
+    path = request.url.path
+    logger.info("Request: %s %s", method, path)
+    try:
+        response = await call_next(request)
+        logger.info("Response: %s %s -> %s", method, path, response.status_code)
+        return response
+    except Exception as e:
+        logger.exception("Error handling %s %s: %s", method, path, e)
+        raise
 
 
 # ---------- Клиенты ----------
@@ -224,3 +249,8 @@ def task_complete(task_id: int, completed: bool = Query(True)):
 def health():
     """Проверка работы API."""
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+def startup():
+    logger.info("CRM API started, DB: %s", DB_PATH)

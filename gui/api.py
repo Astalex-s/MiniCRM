@@ -3,9 +3,19 @@
 Запросы к http://127.0.0.1:8000 через urllib (без доп. зависимостей).
 """
 import json
+import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Корень проекта в path для импорта log
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from log import get_logger
+
+logger = get_logger("gui.api")
 
 BASE_URL = "http://127.0.0.1:8000"
 
@@ -34,10 +44,13 @@ def _request(
             detail = err.get("detail", err_body)
         except Exception:
             detail = str(e)
+        logger.warning("API HTTPError %s %s: %s", method, path, detail)
         raise RuntimeError(detail)
     except urllib.error.URLError as e:
+        logger.warning("API URLError %s %s: %s", method, path, e.reason)
         raise RuntimeError(f"Сервер недоступен: {e.reason}")
     except Exception as e:
+        logger.exception("API error %s %s: %s", method, path, e)
         raise RuntimeError(str(e))
 
 
