@@ -14,6 +14,8 @@ export function ClientsSection() {
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
   const [formError, setFormError] = useState('')
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportResult, setExportResult] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -78,6 +80,19 @@ export function ClientsSection() {
     }
   }
 
+  const runExport = async () => {
+    setExportResult(null)
+    setExportLoading(true)
+    try {
+      const res = await api.export.clients()
+      setExportResult(res)
+    } catch (e) {
+      setExportResult({ error: e.message })
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
   return (
     <div className="card">
       <div className="card-header bg-white py-3 d-flex flex-wrap align-items-center gap-2 justify-content-between">
@@ -98,8 +113,25 @@ export function ClientsSection() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <button type="button" className="btn btn-success" onClick={runExport} disabled={exportLoading} title="Выгрузить таблицу в Google Таблицы">
+            {exportLoading ? <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" /> : <i className="bi bi-file-earmark-spreadsheet me-1"></i>}
+            Выгрузить отчёт
+          </button>
         </div>
       </div>
+      {exportResult && (
+        <div className={`alert m-3 mb-0 ${exportResult.error ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} role="alert">
+          {exportResult.error ? (
+            exportResult.error
+          ) : (
+            <>
+              Отчёт «{exportResult.title}» создан.{' '}
+              <a href={exportResult.webViewLink} target="_blank" rel="noopener noreferrer">Открыть таблицу</a>
+            </>
+          )}
+          <button type="button" className="btn-close" onClick={() => setExportResult(null)} aria-label="Закрыть" />
+        </div>
+      )}
       <div className="card-body p-0">
         {error && (
           <div className="alert alert-danger alert-dismissible fade show m-3 mb-0" role="alert">

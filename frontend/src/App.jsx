@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ClientsSection } from './components/ClientsSection'
 import { DealsSection } from './components/DealsSection'
 import { TasksSection } from './components/TasksSection'
+import { GoogleSettingsModal } from './components/GoogleSettingsModal'
 import './App.css'
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('clients')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [googleSettingsOpen, setGoogleSettingsOpen] = useState(false)
 
   const onTabClick = (id) => {
     setActiveTab(id)
@@ -43,7 +45,16 @@ export default function App() {
             <i className={`bi ${menuOpen ? 'bi-x-lg' : 'bi-list'} fs-4`}></i>
           </button>
           <div className={`collapse navbar-collapse ${menuOpen ? 'show' : ''}`} id="navbarNav">
-            <ul className="navbar-nav nav-pills ms-auto">
+            <ul className="navbar-nav nav-pills ms-auto align-items-lg-center">
+              <li className="nav-item">
+                <button
+                  type="button"
+                  className="nav-link text-white"
+                  onClick={() => { setGoogleSettingsOpen(true); setMenuOpen(false); }}
+                >
+                  <i className="bi bi-gear me-1"></i>Настройки Google
+                </button>
+              </li>
               {TABS.map(({ id, label, icon }) => (
                 <li className="nav-item" key={id}>
                   <button
@@ -66,6 +77,7 @@ export default function App() {
         {activeTab === 'deals' && <DealsSection />}
         {activeTab === 'tasks' && <TasksSection />}
       </main>
+      <GoogleSettingsModal show={googleSettingsOpen} onClose={() => setGoogleSettingsOpen(false)} />
     </div>
   )
 }

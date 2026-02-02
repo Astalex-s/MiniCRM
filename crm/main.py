@@ -1,12 +1,13 @@
 """
 FastAPI-бэкенд мини-CRM.
-Эндпоинты для клиентов, сделок и задач.
+Эндпоинты для клиентов, сделок и задач, экспорт в Google Таблицы.
 """
+import json
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import CRMDatabase
@@ -22,11 +23,11 @@ from .models import (
     TaskUpdate,
 )
 
-# Файл БД рядом с пакетом crm
+# Файл БД и настройки Google
 DB_PATH = Path(__file__).resolve().parent.parent / "crm.db"
-
-# Корень проекта в path для импорта log
 _ROOT = Path(__file__).resolve().parent.parent
+GOOGLE_SETTINGS_PATH = _ROOT / "config" / "google_export_settings.json"
+
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 from log import setup_logging, get_logger
@@ -274,3 +275,131 @@ def health():
 @app.on_event("startup")
 def startup():
     logger.info("CRM API started, DB: %s", DB_PATH)
+
+
+# ---------- Настройки Google (сохраняются в файл) ----------
+
+def _read_google_settings() -> Dict[str, Any]:
+    if not GOOGLE_SETTINGS_PATH.exists():
+        return {}
+    try:
+        with open(GOOGLE_SETTINGS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_google_settings(data: Dict[str, Any]) -> None:
+    GOOGLE_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(GOOGLE_SETTINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.get("/settings/google")
+def get_google_settings():
+    """Настройки Google для экспорта (folder_id, пути к JSON и т.д.)."""
+    return _read_google_settings()
+
+
+@app.post("/settings/google")
+def save_google_settings(payload: Dict[str, Any] = Body(...)):
+    """Сохранить настройки Google в файл (folder_id, credentials_path и т.д.)."""
+    allowed = {"folder_id", "credentials_path", "client_secret_path"}
+    data = _read_google_settings()
+    data.update({k: v for k, v in payload.items() if k in allowed and v is not None})
+    _write_google_settings(data)
+    return data
+
+
+# ---------- Экспорт в Google Таблицы ----------
+
+def _col_letter(n: int) -> str:
+    """Номер столбца (1-based) в букву A, B, ..., Z, AA, ..."""
+    s = ""
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s or "A"
+
+
+def _export_to_google_sheet(
+    title: str,
+    headers: List[str],
+    rows: List[List[Any]],
+    folder_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Создаёт Google Таблицу через Drive API, записывает данные через Sheets API (готовые методы интеграций)."""
+    from integrations.google_drive_client import GoogleDriveClient, MIME_GOOGLE_SHEET
+    from integrations.google_sheets_client import GoogleSheetsClient
+
+    settings = _read_google_settings()
+    creds_path = settings.get("credentials_path")
+    fid = folder_id or settings.get("folder_id")
+
+    drive = GoogleDriveClient(credentials_path=creds_path)
+    meta = drive.create_file(title, MIME_GOOGLE_SHEET, folder_id=fid or None)
+    spreadsheet_id = meta["id"]
+    web_view_link = meta.get("webViewLink", "")
+
+    sheets = GoogleSheetsClient(spreadsheet_id=spreadsheet_id, credentials_path=creds_path)
+    values = [headers] + [[str(c) for c in row] for row in rows]
+    num_rows, num_cols = len(values), len(headers)
+    range_name = f"A1:{_col_letter(num_cols)}{num_rows}"
+    sheets.write_range(range_name, values, value_input_option="USER_ENTERED")
+    sheets.format_range_header(sheet_name=None, start_row=0, end_row=1, start_column=0, end_column=num_cols)
+
+    return {"spreadsheet_id": spreadsheet_id, "webViewLink": web_view_link, "title": title}
+
+
+@app.post("/export/clients")
+def export_clients(body: Dict[str, Any] = Body(default_factory=dict)):
+    """Выгрузить список клиентов в новую Google Таблицу."""
+    folder_id = body.get("folder_id") if isinstance(body, dict) else None
+    try:
+        rows_data = db.client_list(limit=2000)
+        headers = ["ID", "Имя", "Email", "Телефон", "Статус", "Заметки", "Создан", "Обновлён"]
+        rows = [
+            [r["id"], r["name"], r.get("email") or "", r.get("phone") or "", r["status"], (r.get("notes") or "")[:500], r.get("created_at", ""), r.get("updated_at", "")]
+            for r in rows_data
+        ]
+        return _export_to_google_sheet("CRM — Отчёт Клиенты", headers, rows, folder_id=folder_id)
+    except Exception as e:
+        logger.exception("Export clients: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/export/deals")
+def export_deals(body: Dict[str, Any] = Body(default_factory=dict)):
+    """Выгрузить список сделок в новую Google Таблицу."""
+    folder_id = body.get("folder_id") if isinstance(body, dict) else None
+    try:
+        rows_data = db.deal_list(limit=2000)
+        headers = ["ID", "Название", "ID клиента", "Сумма", "Статус", "Заметки", "Создан", "Обновлён"]
+        rows = [
+            [r["id"], r["title"], r.get("client_id") or "", r.get("amount") or "", r["status"], (r.get("notes") or "")[:500], r.get("created_at", ""), r.get("updated_at", "")]
+            for r in rows_data
+        ]
+        return _export_to_google_sheet("CRM — Отчёт Сделки", headers, rows, folder_id=folder_id)
+    except Exception as e:
+        logger.exception("Export deals: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/export/tasks")
+def export_tasks(body: Dict[str, Any] = Body(default_factory=dict)):
+    """Выгрузить список задач в новую Google Таблицу."""
+    folder_id = body.get("folder_id") if isinstance(body, dict) else None
+    try:
+        rows_data = db.task_list(limit=2000)
+        headers = ["ID", "Название", "Описание", "ID клиента", "ID сделки", "Выполнено", "Срок", "Создан", "Обновлён"]
+        rows = [
+            [
+                r["id"], r["title"], (r.get("description") or "")[:500], r.get("client_id") or "", r.get("deal_id") or "",
+                "Да" if r.get("is_completed") else "Нет", (r.get("due_date") or "")[:10], r.get("created_at", ""), r.get("updated_at", ""),
+            ]
+            for r in rows_data
+        ]
+        return _export_to_google_sheet("CRM — Отчёт Задачи", headers, rows, folder_id=folder_id)
+    except Exception as e:
+        logger.exception("Export tasks: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
