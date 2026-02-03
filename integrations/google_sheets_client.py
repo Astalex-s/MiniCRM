@@ -727,6 +727,103 @@ class GoogleSheetsClient:
             .execute()
         )
 
+    def format_report_table(
+        self,
+        sheet_name: str | None = None,
+        num_rows: int = 1,
+        num_cols: int = 1,
+    ) -> dict[str, Any]:
+        """
+        Форматирование отчёта: заголовок (жирный, фон, по центру), границы таблицы,
+        перенос текста в ячейках данных, автоширина столбцов.
+        num_rows, num_cols — количество строк и столбцов (включая заголовок). Индексы 0-based, end — исключающий.
+        """
+        name = sheet_name or self.get_sheet_titles()[0]
+        sheet_id = self.get_sheet_id(name)
+        requests = []
+
+        # 1. Заголовок (первая строка): жирный, серый фон, по центру
+        requests.append({
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "backgroundColor": {"red": 0.85, "green": 0.85, "blue": 0.85},
+                        "horizontalAlignment": "CENTER",
+                        "verticalAlignment": "MIDDLE",
+                        "wrapStrategy": "WRAP",
+                        "textFormat": {"bold": True, "fontSize": 11},
+                    }
+                },
+                "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)",
+            }
+        })
+
+        # 2. Границы всей таблицы
+        requests.append({
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": num_rows,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols,
+                },
+                "top": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
+                "bottom": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
+                "left": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
+                "right": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
+                "innerHorizontal": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
+                "innerVertical": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
+            }
+        })
+
+        # 3. Перенос текста и выравнивание для области данных (строки 1..num_rows)
+        if num_rows > 1:
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "endRowIndex": num_rows,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "wrapStrategy": "WRAP",
+                            "verticalAlignment": "TOP",
+                        }
+                    },
+                    "fields": "userEnteredFormat(wrapStrategy,verticalAlignment)",
+                }
+            })
+
+        # 4. Автоширина столбцов
+        requests.append({
+            "autoResizeDimensions": {
+                "dimensions": {
+                    "sheetId": sheet_id,
+                    "dimension": "COLUMNS",
+                    "startIndex": 0,
+                    "endIndex": num_cols,
+                }
+            }
+        })
+
+        body = {"requests": requests}
+        return (
+            self._service.spreadsheets()
+            .batchUpdate(spreadsheetId=self.spreadsheet_id, body=body)
+            .execute()
+        )
+
     def rename_sheet(
         self,
         new_title: str,
