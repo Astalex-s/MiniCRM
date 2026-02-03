@@ -1,7 +1,21 @@
 import { useState, useEffect } from 'react'
 import { api, formatExportError } from '../api'
 import { BsModal } from './BsModal'
+import { Pagination } from './Pagination'
 import { ReportsModal } from './ReportsModal'
+
+const PER_PAGE = 10
+
+function filterByDateRange(items, dateFrom, dateTo, dateField = 'created_at') {
+  if (!dateFrom && !dateTo) return items
+  return items.filter((item) => {
+    const raw = item[dateField] || ''
+    const d = String(raw).slice(0, 10)
+    if (dateFrom && d < dateFrom) return false
+    if (dateTo && d > dateTo) return false
+    return true
+  })
+}
 
 export function TasksSection() {
   const [list, setList] = useState([])
@@ -14,6 +28,10 @@ export function TasksSection() {
   const [exportLoading, setExportLoading] = useState(false)
   const [exportResult, setExportResult] = useState(null)
   const [reportsModalOpen, setReportsModalOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const loadClientsAndDeals = async () => {
     try {
@@ -30,8 +48,12 @@ export function TasksSection() {
     setLoading(true)
     setError(null)
     try {
-      const data = await api.tasks.list({ limit: 200 })
+      const params = { limit: 200 }
+      if (statusFilter === 'done') params.is_completed = true
+      if (statusFilter === 'not_done') params.is_completed = false
+      const data = await api.tasks.list(params)
       setList(Array.isArray(data) ? data : [])
+      setPage(1)
     } catch (e) {
       setError(e.message)
       setList([])
@@ -40,8 +62,13 @@ export function TasksSection() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [statusFilter])
   useEffect(() => { loadClientsAndDeals() }, [])
+
+  const filteredList = filterByDateRange(list, dateFrom, dateTo)
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const visibleList = filteredList.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
 
   const getClientName = (id) => clientsList.find((c) => c.id === id)?.name ?? null
   const getDealTitle = (id) => dealsList.find((d) => d.id === id)?.title ?? null
@@ -140,6 +167,22 @@ export function TasksSection() {
           <i className="bi bi-folder2-open me-1"></i>Мои отчёты
         </button>
       </div>
+      <div className="d-flex flex-wrap align-items-center gap-3 mt-2 pt-2 border-top">
+        <span className="text-muted small">Фильтры:</span>
+        <select className="form-select form-select-sm" style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Все</option>
+          <option value="done">Выполненные</option>
+          <option value="not_done">Не выполненные</option>
+        </select>
+        <label className="d-flex align-items-center gap-1 small text-muted">
+          Создано с
+          <input type="date" className="form-control form-control-sm" style={{ width: 'auto' }} value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} />
+        </label>
+        <label className="d-flex align-items-center gap-1 small text-muted">
+          по
+          <input type="date" className="form-control form-control-sm" style={{ width: 'auto' }} value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} />
+        </label>
+      </div>
       {exportResult && (
         <div className={`alert m-3 mb-0 ${exportResult.error ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} role="alert">
           {exportResult.error ? (
@@ -171,7 +214,12 @@ export function TasksSection() {
               <i className="bi bi-check2-square display-4"></i>
               <p className="mt-2 mb-0">Нет задач</p>
             </div>
+          ) : filteredList.length === 0 ? (
+            <div className="text-center py-5 text-muted">
+              <p className="mt-2 mb-0">Нет записей по выбранным фильтрам</p>
+            </div>
           ) : (
+            <>
             <table className="table table-hover table-striped align-middle mb-0">
               <thead className="table-light">
                 <tr>
@@ -179,7 +227,7 @@ export function TasksSection() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((r) => (
+                {visibleList.map((r) => (
                   <tr key={r.id} className={r.is_completed ? 'table-secondary' : ''}>
                     <td><span className="text-muted">#{r.id}</span></td>
                     <td><strong>{r.title}</strong></td>
@@ -215,13 +263,20 @@ export function TasksSection() {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              total={filteredList.length}
+              perPage={PER_PAGE}
+              currentPage={safePage}
+              onPageChange={setPage}
+            />
+            </>
           )}
         </div>
       </div>
 
       <BsModal show={!!modal} onClose={closeModal} title={modal?.type === 'create' ? 'Новая задача' : 'Редактирование задачи'}>
         {formError && <div className="alert alert-danger py-2">{formError}</div>}
-        <form onSubmit={handleSubmit}>
+        <form key={modal ? `${modal.type}-${modal.id ?? 'new'}` : 'closed'} onSubmit={handleSubmit}>
           <div className="mb-3">
             <label className="form-label">Название *</label>
             <input name="title" className="form-control" defaultValue={modal?.data?.title} required />

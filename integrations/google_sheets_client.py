@@ -732,80 +732,266 @@ class GoogleSheetsClient:
         sheet_name: str | None = None,
         num_rows: int = 1,
         num_cols: int = 1,
+        data_start_row: int = 0,
+        summary_rows: int = 0,
+        title_row_index: int | None = None,
+        report_title: str | None = None,
+        status_col_index: int | None = None,
+        status_colors: dict[str, tuple[float, float, float]] | None = None,
+        data_rows_values: list[list[Any]] | None = None,
+        status_text_color: bool = False,
     ) -> dict[str, Any]:
         """
-        Форматирование отчёта: заголовок (жирный, фон, по центру), границы таблицы,
-        перенос текста в ячейках данных, автоширина столбцов.
-        num_rows, num_cols — количество строк и столбцов (включая заголовок). Индексы 0-based, end — исключающий.
+        Форматирование отчёта CRM: первая строка — название (синий, объединение, жирный курсив),
+        сводный блок, тёмно-зелёная шапка таблицы, статусы — цвет текста (не ячейки), перенос по высоте,
+        зебра, заморозка, автоширина.
         """
         name = sheet_name or self.get_sheet_titles()[0]
         sheet_id = self.get_sheet_id(name)
-        requests = []
+        requests: list[dict[str, Any]] = []
 
-        # 1. Заголовок (первая строка): жирный, серый фон, по центру
+        header_row = data_start_row
+        data_end_row = data_start_row + num_rows
+
+        # 0. Первая строка — название отчёта: объединить ячейки, синий фон, жирный курсив
+        if title_row_index is not None and num_cols > 1:
+            requests.append({
+                "mergeCells": {
+                    "mergeType": "MERGE_ALL",
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": title_row_index,
+                        "endRowIndex": title_row_index + 1,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                }
+            })
+            blue_header = {"red": 0.15, "green": 0.35, "blue": 0.65}
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": title_row_index,
+                        "endRowIndex": title_row_index + 1,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "backgroundColor": blue_header,
+                            "horizontalAlignment": "CENTER",
+                            "verticalAlignment": "MIDDLE",
+                            "wrapStrategy": "WRAP",
+                            "textFormat": {
+                                "bold": True,
+                                "italic": True,
+                                "fontSize": 14,
+                                "foregroundColor": {"red": 1, "green": 1, "blue": 1},
+                            },
+                        }
+                    },
+                    "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)",
+                }
+            })
+
+        # 1. Сводный блок (строки 1 .. 1+summary_rows): светлый фон, границы
+        if summary_rows > 0:
+            summary_start = (title_row_index + 1) if title_row_index is not None else 0
+            summary_end = summary_start + summary_rows
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": summary_start,
+                        "endRowIndex": summary_end,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "backgroundColor": {"red": 0.95, "green": 0.97, "blue": 0.95},
+                            "wrapStrategy": "WRAP",
+                            "verticalAlignment": "MIDDLE",
+                        }
+                    },
+                    "fields": "userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)",
+                }
+            })
+            requests.append({
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": summary_start,
+                        "endRowIndex": summary_start + 1,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "textFormat": {"bold": True, "fontSize": 12},
+                        }
+                    },
+                    "fields": "userEnteredFormat.textFormat",
+                }
+            })
+            requests.append({
+                "updateBorders": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": summary_start,
+                        "endRowIndex": summary_end,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "top": {"style": "SOLID", "width": 1, "color": {"red": 0.7, "green": 0.8, "blue": 0.7}},
+                    "bottom": {"style": "SOLID", "width": 1, "color": {"red": 0.7, "green": 0.8, "blue": 0.7}},
+                    "left": {"style": "SOLID", "width": 1, "color": {"red": 0.7, "green": 0.8, "blue": 0.7}},
+                    "right": {"style": "SOLID", "width": 1, "color": {"red": 0.7, "green": 0.8, "blue": 0.7}},
+                    "innerHorizontal": {"style": "SOLID", "width": 1, "color": {"red": 0.85, "green": 0.9, "blue": 0.85}},
+                    "innerVertical": {"style": "SOLID", "width": 1, "color": {"red": 0.85, "green": 0.9, "blue": 0.85}},
+                }
+            })
+
+        # 2. Шапка таблицы: тёмно-зелёный фон, белый текст, в одну строку
+        dark_green = {"red": 0.0, "green": 0.4, "blue": 0.2}
         requests.append({
             "repeatCell": {
                 "range": {
                     "sheetId": sheet_id,
-                    "startRowIndex": 0,
-                    "endRowIndex": 1,
+                    "startRowIndex": header_row,
+                    "endRowIndex": header_row + 1,
                     "startColumnIndex": 0,
                     "endColumnIndex": num_cols,
                 },
                 "cell": {
                     "userEnteredFormat": {
-                        "backgroundColor": {"red": 0.85, "green": 0.85, "blue": 0.85},
+                        "backgroundColor": dark_green,
                         "horizontalAlignment": "CENTER",
                         "verticalAlignment": "MIDDLE",
-                        "wrapStrategy": "WRAP",
-                        "textFormat": {"bold": True, "fontSize": 11},
+                        "wrapStrategy": "OVERFLOW_CELL",
+                        "textFormat": {"bold": True, "fontSize": 11, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
                     }
                 },
                 "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)",
             }
         })
 
-        # 2. Границы всей таблицы
+        # 3. Границы таблицы
         requests.append({
             "updateBorders": {
                 "range": {
                     "sheetId": sheet_id,
-                    "startRowIndex": 0,
-                    "endRowIndex": num_rows,
+                    "startRowIndex": data_start_row,
+                    "endRowIndex": data_end_row,
                     "startColumnIndex": 0,
                     "endColumnIndex": num_cols,
                 },
-                "top": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
-                "bottom": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
-                "left": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
-                "right": {"style": "SOLID", "width": 1, "color": {"red": 0.6, "green": 0.6, "blue": 0.6}},
-                "innerHorizontal": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
-                "innerVertical": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
+                "top": {"style": "SOLID", "width": 1, "color": {"red": 0.5, "green": 0.55, "blue": 0.5}},
+                "bottom": {"style": "SOLID", "width": 1, "color": {"red": 0.5, "green": 0.55, "blue": 0.5}},
+                "left": {"style": "SOLID", "width": 1, "color": {"red": 0.5, "green": 0.55, "blue": 0.5}},
+                "right": {"style": "SOLID", "width": 1, "color": {"red": 0.5, "green": 0.55, "blue": 0.5}},
+                "innerHorizontal": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.82, "blue": 0.8}},
+                "innerVertical": {"style": "SOLID", "width": 1, "color": {"red": 0.8, "green": 0.82, "blue": 0.8}},
             }
         })
 
-        # 3. Перенос текста и выравнивание для области данных (строки 1..num_rows)
+        # 4. Данные: одна строка (без переноса), ширина столбцов по содержимому через autoResize ниже, зебра
         if num_rows > 1:
             requests.append({
                 "repeatCell": {
                     "range": {
                         "sheetId": sheet_id,
-                        "startRowIndex": 1,
-                        "endRowIndex": num_rows,
+                        "startRowIndex": header_row + 1,
+                        "endRowIndex": data_end_row,
                         "startColumnIndex": 0,
                         "endColumnIndex": num_cols,
                     },
                     "cell": {
                         "userEnteredFormat": {
-                            "wrapStrategy": "WRAP",
-                            "verticalAlignment": "TOP",
+                            "wrapStrategy": "OVERFLOW_CELL",
+                            "verticalAlignment": "MIDDLE",
                         }
                     },
                     "fields": "userEnteredFormat(wrapStrategy,verticalAlignment)",
                 }
             })
+            # Зебра: чередующийся фон строк данных
+            for i in range(header_row + 1, data_end_row):
+                if (i - header_row) % 2 == 1:
+                    requests.append({
+                        "repeatCell": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "startRowIndex": i,
+                                "endRowIndex": i + 1,
+                                "startColumnIndex": 0,
+                                "endColumnIndex": num_cols,
+                            },
+                            "cell": {
+                                "userEnteredFormat": {
+                                    "backgroundColor": {"red": 0.98, "green": 0.98, "blue": 0.98},
+                                }
+                            },
+                            "fields": "userEnteredFormat.backgroundColor",
+                        }
+                    })
 
-        # 4. Автоширина столбцов
+        # 5. Статусы: цвет текста (не ячейки), жирный
+        if (
+            status_col_index is not None
+            and status_colors
+            and data_rows_values
+            and status_col_index < num_cols
+            and len(data_rows_values) > 1
+        ):
+            for row_idx in range(1, len(data_rows_values)):
+                row_vals = data_rows_values[row_idx]
+                if status_col_index < len(row_vals):
+                    cell_val = str(row_vals[status_col_index]).strip()
+                    color = status_colors.get(cell_val)
+                    if not color:
+                        continue
+                    r, g, b = color
+                    sheet_row = header_row + row_idx
+                    fmt: dict[str, Any] = {
+                        "textFormat": {
+                            "bold": True,
+                            "foregroundColor": {"red": r, "green": g, "blue": b},
+                        }
+                    }
+                    if status_text_color:
+                        # Только цвет текста, фон ячейки не трогаем
+                        requests.append({
+                            "repeatCell": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": sheet_row,
+                                    "endRowIndex": sheet_row + 1,
+                                    "startColumnIndex": status_col_index,
+                                    "endColumnIndex": status_col_index + 1,
+                                },
+                                "cell": {"userEnteredFormat": fmt},
+                                "fields": "userEnteredFormat.textFormat",
+                            }
+                        })
+                    else:
+                        fmt["backgroundColor"] = {"red": r, "green": g, "blue": b}
+                        requests.append({
+                            "repeatCell": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": sheet_row,
+                                    "endRowIndex": sheet_row + 1,
+                                    "startColumnIndex": status_col_index,
+                                    "endColumnIndex": status_col_index + 1,
+                                },
+                                "cell": {"userEnteredFormat": fmt},
+                                "fields": "userEnteredFormat(backgroundColor,textFormat)",
+                            }
+                        })
+
+        # 6. Автоширина столбцов
         requests.append({
             "autoResizeDimensions": {
                 "dimensions": {
@@ -816,6 +1002,19 @@ class GoogleSheetsClient:
                 }
             }
         })
+
+        # 7. Заморозка: заголовок отчёта + сводка + шапка таблицы остаются при прокрутке
+        freeze_count = data_start_row + 1
+        if freeze_count > 0:
+            requests.append({
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": sheet_id,
+                        "gridProperties": {"frozenRowCount": freeze_count},
+                    },
+                    "fields": "gridProperties.frozenRowCount",
+                }
+            })
 
         body = {"requests": requests}
         return (

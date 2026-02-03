@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
 import { BsModal } from './BsModal'
+import { Pagination } from './Pagination'
+
+const PER_PAGE = 10
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -16,10 +19,12 @@ export function ReportsModal({ show, onClose, section, sectionLabel }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [files, setFiles] = useState([])
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     if (show && section) {
       setError('')
+      setPage(1)
       setLoading(true)
       api.export
         .listFiles(section)
@@ -43,25 +48,33 @@ export function ReportsModal({ show, onClose, section, sectionLabel }) {
       ) : files.length === 0 ? (
         <p className="text-muted mb-0">Нет выгруженных отчётов по этому разделу.</p>
       ) : (
-        <div className="list-group list-group-flush">
-          {files.map((f) => (
-            <div key={f.id} className="list-group-item d-flex align-items-center justify-content-between px-0">
-              <div className="text-truncate me-2" title={f.name}>
-                <span className="fw-medium">{f.name}</span>
-                <br />
-                <small className="text-muted">{formatDate(f.modifiedTime)}</small>
+        <>
+          <div className="list-group list-group-flush">
+            {files.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((f) => (
+              <div key={f.id} className="list-group-item d-flex align-items-center justify-content-between px-0">
+                <div className="text-truncate me-2" title={f.name}>
+                  <span className="fw-medium">{f.name}</span>
+                  <br />
+                  <small className="text-muted">{formatDate(f.modifiedTime)}</small>
+                </div>
+                <a
+                  href={f.webViewLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-sm btn-outline-primary text-nowrap"
+                >
+                  Открыть
+                </a>
               </div>
-              <a
-                href={f.webViewLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm btn-outline-primary text-nowrap"
-              >
-                Открыть
-              </a>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Pagination
+            total={files.length}
+            perPage={PER_PAGE}
+            currentPage={page}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </BsModal>
   )

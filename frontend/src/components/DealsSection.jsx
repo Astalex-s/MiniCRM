@@ -1,7 +1,21 @@
 import { useState, useEffect } from 'react'
 import { api, formatExportError } from '../api'
 import { BsModal } from './BsModal'
+import { Pagination } from './Pagination'
 import { ReportsModal } from './ReportsModal'
+
+const PER_PAGE = 10
+
+function filterByDateRange(items, dateFrom, dateTo, dateField = 'created_at') {
+  if (!dateFrom && !dateTo) return items
+  return items.filter((item) => {
+    const raw = item[dateField] || ''
+    const d = String(raw).slice(0, 10)
+    if (dateFrom && d < dateFrom) return false
+    if (dateTo && d > dateTo) return false
+    return true
+  })
+}
 
 const dealStatusBadge = (s) => {
   const map = { draft: 'bg-secondary', in_progress: 'bg-info', won: 'bg-success', lost: 'bg-danger' }
@@ -19,6 +33,10 @@ export function DealsSection() {
   const [exportLoading, setExportLoading] = useState(false)
   const [exportResult, setExportResult] = useState(null)
   const [reportsModalOpen, setReportsModalOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const loadClients = async () => {
     try {
@@ -33,8 +51,11 @@ export function DealsSection() {
     setLoading(true)
     setError(null)
     try {
-      const data = search ? await api.deals.search(search) : await api.deals.list({ limit: 200 })
+      const params = { limit: 200 }
+      if (statusFilter) params.status = statusFilter
+      const data = search ? await api.deals.search(search) : await api.deals.list(params)
       setList(Array.isArray(data) ? data : [])
+      setPage(1)
     } catch (e) {
       setError(e.message)
       setList([])
@@ -43,8 +64,14 @@ export function DealsSection() {
     }
   }
 
-  useEffect(() => { load() }, [search])
+  useEffect(() => { load() }, [search, statusFilter])
   useEffect(() => { loadClients() }, [])
+
+  let filteredList = filterByDateRange(list, dateFrom, dateTo)
+  if (statusFilter && search) filteredList = filteredList.filter((r) => r.status === statusFilter)
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const visibleList = filteredList.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
 
   const getClientName = (clientId) => clientsList.find((c) => c.id === clientId)?.name || null
 
@@ -127,6 +154,24 @@ export function DealsSection() {
             <i className="bi bi-folder2-open me-1"></i>Мои отчёты
           </button>
         </div>
+        <div className="d-flex flex-wrap align-items-center gap-3 mt-2 pt-2 border-top">
+          <span className="text-muted small">Фильтры:</span>
+          <select className="form-select form-select-sm" style={{ width: 'auto' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">Все статусы</option>
+            <option value="draft">Черновик</option>
+            <option value="in_progress">В работе</option>
+            <option value="won">Выиграна</option>
+            <option value="lost">Проиграна</option>
+          </select>
+          <label className="d-flex align-items-center gap-1 small text-muted">
+            Создано с
+            <input type="date" className="form-control form-control-sm" style={{ width: 'auto' }} value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} />
+          </label>
+          <label className="d-flex align-items-center gap-1 small text-muted">
+            по
+            <input type="date" className="form-control form-control-sm" style={{ width: 'auto' }} value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} />
+          </label>
+        </div>
       </div>
       {exportResult && (
         <div className={`alert m-3 mb-0 ${exportResult.error ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} role="alert">
@@ -159,7 +204,12 @@ export function DealsSection() {
               <i className="bi bi-briefcase display-4"></i>
               <p className="mt-2 mb-0">Нет сделок</p>
             </div>
+          ) : filteredList.length === 0 ? (
+            <div className="text-center py-5 text-muted">
+              <p className="mt-2 mb-0">Нет записей по выбранным фильтрам</p>
+            </div>
           ) : (
+            <>
             <table className="table table-hover table-striped align-middle mb-0">
               <thead className="table-light">
                 <tr>
@@ -167,7 +217,7 @@ export function DealsSection() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((r) => (
+                {visibleList.map((r) => (
                   <tr key={r.id}>
                     <td><span className="text-muted">#{r.id}</span></td>
                     <td><strong>{r.title}</strong></td>
@@ -189,6 +239,13 @@ export function DealsSection() {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              total={filteredList.length}
+              perPage={PER_PAGE}
+              currentPage={safePage}
+              onPageChange={setPage}
+            />
+            </>
           )}
         </div>
       </div>

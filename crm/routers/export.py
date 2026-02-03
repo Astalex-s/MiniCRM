@@ -17,16 +17,29 @@ def export_clients(
 ):
     folder_id = body.get("folder_id") if isinstance(body, dict) else None
     try:
-        rows_data = db.client_list(limit=2000)
-        headers = ["ID", "Имя", "Email", "Телефон", "Статус", "Заметки", "Создан", "Обновлён"]
+        rows_data = sorted(db.client_list(limit=2000), key=lambda r: r["id"])
+        headers = ["№", "ID", "Имя", "Email", "Телефон", "Статус", "Заметки", "Создан", "Обновлён"]
+
+        def _escape_cell(v):
+            """Экранировать значение для Excel/Sheets: + = - @ в начале трактуются как формула."""
+            s = v if v is not None else ""
+            s = str(s).strip()
+            if s and s[0] in ("+", "=", "-", "@"):
+                return "'" + str(v)
+            return v if v is not None else ""
+
         rows = [
             [
-                r["id"], r["name"], r.get("email") or "", r.get("phone") or "",
+                i + 1,
+                r["id"], r["name"], r.get("email") or "", _escape_cell(r.get("phone")),
                 r["status"], (r.get("notes") or "")[:500], r.get("created_at", ""), r.get("updated_at", ""),
             ]
-            for r in rows_data
+            for i, r in enumerate(rows_data)
         ]
-        return export_to_google_sheet("CRM — Отчёт Клиенты", headers, rows, folder_id=folder_id)
+        return export_to_google_sheet(
+            "CRM — Отчёт Клиенты", headers, rows, folder_id=folder_id,
+            section="clients", rows_data=rows_data,
+        )
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export clients: %s", e)
@@ -40,16 +53,20 @@ def export_deals(
 ):
     folder_id = body.get("folder_id") if isinstance(body, dict) else None
     try:
-        rows_data = db.deal_list(limit=2000)
-        headers = ["ID", "Название", "ID клиента", "Сумма", "Статус", "Заметки", "Создан", "Обновлён"]
+        rows_data = sorted(db.deal_list(limit=2000), key=lambda r: r["id"])
+        headers = ["№", "ID", "Название", "ID клиента", "Сумма", "Статус", "Заметки", "Создан", "Обновлён"]
         rows = [
             [
+                i + 1,
                 r["id"], r["title"], r.get("client_id") or "", r.get("amount") or "",
                 r["status"], (r.get("notes") or "")[:500], r.get("created_at", ""), r.get("updated_at", ""),
             ]
-            for r in rows_data
+            for i, r in enumerate(rows_data)
         ]
-        return export_to_google_sheet("CRM — Отчёт Сделки", headers, rows, folder_id=folder_id)
+        return export_to_google_sheet(
+            "CRM — Отчёт Сделки", headers, rows, folder_id=folder_id,
+            section="deals", rows_data=rows_data,
+        )
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export deals: %s", e)
@@ -63,16 +80,20 @@ def export_tasks(
 ):
     folder_id = body.get("folder_id") if isinstance(body, dict) else None
     try:
-        rows_data = db.task_list(limit=2000)
-        headers = ["ID", "Название", "Описание", "ID клиента", "ID сделки", "Выполнено", "Срок", "Создан", "Обновлён"]
+        rows_data = sorted(db.task_list(limit=2000), key=lambda r: r["id"])
+        headers = ["№", "ID", "Название", "Описание", "ID клиента", "ID сделки", "Выполнено", "Срок", "Создан", "Обновлён"]
         rows = [
             [
+                i + 1,
                 r["id"], r["title"], (r.get("description") or "")[:500], r.get("client_id") or "", r.get("deal_id") or "",
                 "Да" if r.get("is_completed") else "Нет", (r.get("due_date") or "")[:10], r.get("created_at", ""), r.get("updated_at", ""),
             ]
-            for r in rows_data
+            for i, r in enumerate(rows_data)
         ]
-        return export_to_google_sheet("CRM — Отчёт Задачи", headers, rows, folder_id=folder_id)
+        return export_to_google_sheet(
+            "CRM — Отчёт Задачи", headers, rows, folder_id=folder_id,
+            section="tasks", rows_data=rows_data,
+        )
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export tasks: %s", e)

@@ -108,7 +108,8 @@ class CRMDatabase:
 
     def client_update(self, client_id: int, **kwargs) -> Optional[dict]:
         allowed = {"name", "email", "phone", "status", "notes"}
-        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        optional_clear = {"email", "phone", "notes"}  # разрешить явную очистку (None)
+        updates = {k: v for k, v in kwargs.items() if k in allowed and (v is not None or k in optional_clear)}
         if not updates:
             return self.client_get(client_id)
         updates["updated_at"] = _now_iso()
