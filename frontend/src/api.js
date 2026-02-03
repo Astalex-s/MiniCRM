@@ -67,6 +67,8 @@ export const api = {
     clients: (folderId = null) => request('POST', '/export/clients', folderId != null ? { folder_id: folderId } : {}),
     deals: (folderId = null) => request('POST', '/export/deals', folderId != null ? { folder_id: folderId } : {}),
     tasks: (folderId = null) => request('POST', '/export/tasks', folderId != null ? { folder_id: folderId } : {}),
+    /** Список выгруженных отчётов по разделу (clients | deals | tasks) */
+    listFiles: (section) => request('GET', `/export/files?section=${encodeURIComponent(section)}`),
   },
   // Настройки Google (сохраняются в файл на сервере)
   settings: {

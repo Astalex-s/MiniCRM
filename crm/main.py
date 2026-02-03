@@ -480,3 +480,59 @@ def export_tasks(body: Dict[str, Any] = Body(default_factory=dict)):
     except Exception as e:
         logger.exception("Export tasks: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+SECTION_PREFIXES = {
+    "clients": "CRM — Отчёт Клиенты",
+    "deals": "CRM — Отчёт Сделки",
+    "tasks": "CRM — Отчёт Задачи",
+}
+
+
+def _list_export_files(section: str) -> List[Dict[str, Any]]:
+    """Список отчётов в папке Drive по разделу (clients/deals/tasks)."""
+    from integrations.google_drive_client import GoogleDriveClient, GoogleDriveUserClient
+
+    settings = _read_google_settings()
+    creds_path = _resolve_creds_path(settings.get("credentials_path"))
+    client_secret_path = _resolve_creds_path(settings.get("client_secret_path"))
+    fid = settings.get("folder_id")
+    prefix = SECTION_PREFIXES.get(section)
+    if not prefix:
+        return []
+
+    if client_secret_path:
+        client = GoogleDriveUserClient(client_secret_path=client_secret_path)
+    else:
+        client = GoogleDriveClient(credentials_path=creds_path)
+
+    q = "trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet'"
+    if fid and fid != "root":
+        q += f" and '{fid}' in parents"
+    else:
+        q += " and 'root' in parents"
+
+    result = (
+        client._service.files()
+        .list(
+            q=q,
+            pageSize=100,
+            orderBy="modifiedTime desc",
+            fields="nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink)",
+        )
+        .execute()
+    )
+    files = result.get("files", [])
+    out = [f for f in files if (f.get("name") or "").startswith(prefix)]
+    return [{"id": f["id"], "name": f["name"], "webViewLink": f.get("webViewLink", ""), "modifiedTime": f.get("modifiedTime", "")} for f in out]
+
+
+@app.get("/export/files")
+def list_export_files(section: str = Query(..., description="clients, deals или tasks")):
+    """Список выгруженных отчётов в Google Drive по разделу."""
+    try:
+        items = _list_export_files(section)
+        return {"section": section, "files": items}
+    except Exception as e:
+        logger.exception("List export files: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))

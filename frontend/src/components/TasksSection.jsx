@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api, formatExportError } from '../api'
 import { BsModal } from './BsModal'
+import { ReportsModal } from './ReportsModal'
 
 export function TasksSection() {
   const [list, setList] = useState([])
@@ -12,6 +13,7 @@ export function TasksSection() {
   const [formError, setFormError] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
   const [exportResult, setExportResult] = useState(null)
+  const [reportsModalOpen, setReportsModalOpen] = useState(false)
 
   const loadClientsAndDeals = async () => {
     try {
@@ -133,6 +135,9 @@ export function TasksSection() {
         <button type="button" className="btn btn-success" onClick={runExport} disabled={exportLoading} title="Выгрузить таблицу в Google Таблицы">
           {exportLoading ? <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" /> : <i className="bi bi-file-earmark-spreadsheet me-1"></i>}
           Выгрузить отчёт
+        </button>
+        <button type="button" className="btn btn-outline-primary" onClick={() => setReportsModalOpen(true)} title="Все отчёты по задачам в Google Drive">
+          <i className="bi bi-folder2-open me-1"></i>Мои отчёты
         </button>
       </div>
       {exportResult && (
@@ -261,6 +266,7 @@ export function TasksSection() {
           </div>
         </form>
       </BsModal>
+      <ReportsModal show={reportsModalOpen} onClose={() => setReportsModalOpen(false)} section="tasks" sectionLabel="Задачи" />
     </div>
   )
 }

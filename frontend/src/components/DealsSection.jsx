@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api, formatExportError } from '../api'
 import { BsModal } from './BsModal'
+import { ReportsModal } from './ReportsModal'
 
 const dealStatusBadge = (s) => {
   const map = { draft: 'bg-secondary', in_progress: 'bg-info', won: 'bg-success', lost: 'bg-danger' }
@@ -17,6 +18,7 @@ export function DealsSection() {
   const [formError, setFormError] = useState('')
   const [exportLoading, setExportLoading] = useState(false)
   const [exportResult, setExportResult] = useState(null)
+  const [reportsModalOpen, setReportsModalOpen] = useState(false)
 
   const loadClients = async () => {
     try {
@@ -120,6 +122,9 @@ export function DealsSection() {
           <button type="button" className="btn btn-success" onClick={runExport} disabled={exportLoading} title="Выгрузить таблицу в Google Таблицы">
             {exportLoading ? <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" /> : <i className="bi bi-file-earmark-spreadsheet me-1"></i>}
             Выгрузить отчёт
+          </button>
+          <button type="button" className="btn btn-outline-primary" onClick={() => setReportsModalOpen(true)} title="Все отчёты по сделкам в Google Drive">
+            <i className="bi bi-folder2-open me-1"></i>Мои отчёты
           </button>
         </div>
       </div>
@@ -227,6 +232,7 @@ export function DealsSection() {
           </div>
         </form>
       </BsModal>
+      <ReportsModal show={reportsModalOpen} onClose={() => setReportsModalOpen(false)} section="deals" sectionLabel="Сделки" />
     </div>
   )
 }
