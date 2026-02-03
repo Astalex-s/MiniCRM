@@ -13,8 +13,17 @@ env/
 *-credentials*.json
 *service-account*.json
 client_secret_307413857228-3ljotgjhgm59rd3fm8uqg4bnphugpa1g.apps.googleusercontent.com.json
-# OAuth2 токен пользователя (Drive)
+# OAuth2: client_secret и токен пользователя (Drive)
+**/client_secret*.json
 token_drive_user.json
+# Конфиг с путями к секретам и настройками экспорта (локальные)
+config/client_secret.json
+config/client_secret*.json
+config/google_export_settings.json
+config/token_drive_user.json
+config/*excel-factory*.json
+config/*-credentials*.json
+config/*service-account*.json
 
 # Python
 __pycache__/
