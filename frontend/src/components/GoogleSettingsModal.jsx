@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../api'
 import { BsModal } from './BsModal'
 
@@ -10,6 +10,10 @@ export function GoogleSettingsModal({ show, onClose }) {
   const [credentialsPath, setCredentialsPath] = useState('')
   const [clientSecretPath, setClientSecretPath] = useState('')
   const [pasteError, setPasteError] = useState('')
+  const [uploadingCredentials, setUploadingCredentials] = useState(false)
+  const [uploadingClientSecret, setUploadingClientSecret] = useState(false)
+  const credentialsInputRef = useRef(null)
+  const clientSecretInputRef = useRef(null)
 
   useEffect(() => {
     if (show) {
@@ -35,6 +39,28 @@ export function GoogleSettingsModal({ show, onClose }) {
       setFolderId(text)
     } catch (e) {
       setPasteError('Не удалось вставить из буфера. Разрешите доступ к буферу обмена или вставьте вручную (Ctrl+V).')
+    }
+  }
+
+  const handleFileSelect = async (target, file) => {
+    if (!file || !file.name.toLowerCase().endsWith('.json')) {
+      setError('Выберите файл с расширением .json')
+      return
+    }
+    setError('')
+    if (target === 'credentials') setUploadingCredentials(true)
+    else setUploadingClientSecret(true)
+    try {
+      const res = await api.settings.uploadGoogleFile(file, target)
+      if (res?.path) {
+        if (target === 'credentials') setCredentialsPath(res.path)
+        else setClientSecretPath(res.path)
+      }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      if (target === 'credentials') setUploadingCredentials(false)
+      else setUploadingClientSecret(false)
     }
   }
 
@@ -83,24 +109,60 @@ export function GoogleSettingsModal({ show, onClose }) {
             <div className="form-text">Откройте папку в Google Drive в браузере — ID есть в URL после /folders/</div>
           </div>
           <div className="mb-3">
-            <label className="form-label">Путь к credentials (JSON), необязательно</label>
-            <input
-              type="text"
-              className="form-control font-monospace"
-              placeholder="config/credentials.json"
-              value={credentialsPath}
-              onChange={(e) => setCredentialsPath(e.target.value)}
-            />
+            <label className="form-label">Сервисный аккаунт (excel-factory.json)</label>
+            <div className="input-group">
+              <input
+                type="text"
+                className="form-control font-monospace"
+                placeholder="config/excel-factory.json"
+                value={credentialsPath}
+                onChange={(e) => setCredentialsPath(e.target.value)}
+              />
+              <input
+                ref={credentialsInputRef}
+                type="file"
+                accept=".json"
+                className="d-none"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect('credentials', f); e.target.value = '' }}
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                disabled={uploadingCredentials}
+                onClick={() => credentialsInputRef.current?.click()}
+              >
+                {uploadingCredentials ? <span className="spinner-border spinner-border-sm" /> : 'Выбрать файл'}
+              </button>
+            </div>
+            <div className="form-text">Укажите путь вручную или загрузите JSON — сохранится в config/</div>
           </div>
           <div className="mb-4">
-            <label className="form-label">Путь к client_secret (JSON), необязательно</label>
-            <input
-              type="text"
-              className="form-control font-monospace"
-              placeholder="config/client_secret.json"
-              value={clientSecretPath}
-              onChange={(e) => setClientSecretPath(e.target.value)}
-            />
+            <label className="form-label">Client secret (JSON), для OAuth</label>
+            <div className="input-group">
+              <input
+                type="text"
+                className="form-control font-monospace"
+                placeholder="config/client_secret.json"
+                value={clientSecretPath}
+                onChange={(e) => setClientSecretPath(e.target.value)}
+              />
+              <input
+                ref={clientSecretInputRef}
+                type="file"
+                accept=".json"
+                className="d-none"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect('client_secret', f); e.target.value = '' }}
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                disabled={uploadingClientSecret}
+                onClick={() => clientSecretInputRef.current?.click()}
+              >
+                {uploadingClientSecret ? <span className="spinner-border spinner-border-sm" /> : 'Выбрать файл'}
+              </button>
+            </div>
+            <div className="form-text">Укажите путь вручную или загрузите JSON — сохранится в config/</div>
           </div>
           <div className="d-flex justify-content-end gap-2">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Отмена</button>

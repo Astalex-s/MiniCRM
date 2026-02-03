@@ -4,10 +4,11 @@ FastAPI-бэкенд мини-CRM.
 """
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request, Body
+from fastapi import FastAPI, File, HTTPException, Query, Request, Body, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import CRMDatabase
@@ -311,6 +312,34 @@ def save_google_settings(payload: Dict[str, Any] = Body(...)):
     return data
 
 
+CONFIG_DIR = _ROOT / "config"
+# Сервисный аккаунт сохраняем как excel-factory.json (интеграция ищет *excel-factory*.json)
+ALLOWED_UPLOAD_NAMES = {"credentials": "excel-factory.json", "client_secret": "client_secret.json"}
+
+
+@app.post("/settings/google/upload")
+async def upload_google_settings_file(
+    file: UploadFile = File(...),
+    target: str = Query(..., description="credentials или client_secret"),
+):
+    """Загрузить JSON конфигурации в config/ и вернуть путь для настроек."""
+    if target not in ALLOWED_UPLOAD_NAMES:
+        raise HTTPException(status_code=400, detail="target должен быть credentials или client_secret")
+    if not file.filename or not file.filename.lower().endswith(".json"):
+        raise HTTPException(status_code=400, detail="Нужен файл с расширением .json")
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    save_name = ALLOWED_UPLOAD_NAMES[target]
+    save_path = CONFIG_DIR / save_name
+    try:
+        content = await file.read()
+        save_path.write_bytes(content)
+    except Exception as e:
+        logger.exception("Upload settings file: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    relative_path = f"config/{save_name}"
+    return {"path": relative_path}
+
+
 # ---------- Экспорт в Google Таблицы ----------
 
 def _col_letter(n: int) -> str:
@@ -322,33 +351,81 @@ def _col_letter(n: int) -> str:
     return s or "A"
 
 
+def _resolve_creds_path(path: Optional[str]) -> Optional[str]:
+    """Путь к credentials: если относительный — от корня проекта."""
+    if not path or Path(path).is_absolute():
+        return path
+    return str(_ROOT / path.replace("\\", "/"))
+
+
+def _get_service_account_email(credentials_path: str) -> str:
+    """Из JSON ключа сервисного аккаунта достаёт client_email."""
+    p = Path(credentials_path)
+    if not p.is_absolute():
+        p = _ROOT / credentials_path.replace("\\", "/")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    return data.get("client_email") or ""
+
+
 def _export_to_google_sheet(
     title: str,
     headers: List[str],
     rows: List[List[Any]],
     folder_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Создаёт Google Таблицу через Drive API, записывает данные через Sheets API (готовые методы интеграций)."""
-    from integrations.google_drive_client import GoogleDriveClient, MIME_GOOGLE_SHEET
+    """
+    Создаёт Google Таблицу (как в main() google_drive_client: OAuth пользователя, квота в его Drive),
+    название = раздел + timestamp. Затем записывает данные через Sheets API.
+    """
+    from integrations.google_drive_client import GoogleDriveClient, GoogleDriveUserClient, MIME_GOOGLE_SHEET
     from integrations.google_sheets_client import GoogleSheetsClient
 
     settings = _read_google_settings()
-    creds_path = settings.get("credentials_path")
+    creds_path = _resolve_creds_path(settings.get("credentials_path"))
+    client_secret_path = _resolve_creds_path(settings.get("client_secret_path"))
     fid = folder_id or settings.get("folder_id")
 
-    drive = GoogleDriveClient(credentials_path=creds_path)
-    meta = drive.create_file(title, MIME_GOOGLE_SHEET, folder_id=fid or None)
-    spreadsheet_id = meta["id"]
-    web_view_link = meta.get("webViewLink", "")
+    # Название файла: раздел + timestamp (как в main — создание от имени пользователя)
+    title_with_ts = f"{title} {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
+
+    if client_secret_path:
+        # OAuth пользователя: файл в его Drive, его квота (как в main())
+        drive_user = GoogleDriveUserClient(client_secret_path=client_secret_path)
+        meta = drive_user.create_google_sheet(title=title_with_ts, folder_id=fid or None)
+        spreadsheet_id = meta["id"]
+        web_view_link = meta.get("webViewLink", "")
+        # Даём доступ сервисному аккаунту для записи данных
+        if creds_path:
+            sa_email = _get_service_account_email(creds_path)
+            if sa_email:
+                drive_user.share_file_with_email(spreadsheet_id, sa_email, role="writer")
+    else:
+        # Fallback: сервисный аккаунт (как раньше)
+        drive = GoogleDriveClient(credentials_path=creds_path)
+        meta = drive.create_file(title_with_ts, MIME_GOOGLE_SHEET, folder_id=fid or None)
+        spreadsheet_id = meta["id"]
+        web_view_link = meta.get("webViewLink", "")
 
     sheets = GoogleSheetsClient(spreadsheet_id=spreadsheet_id, credentials_path=creds_path)
+    sheet_name = sheets.get_sheet_titles()[0]
     values = [headers] + [[str(c) for c in row] for row in rows]
     num_rows, num_cols = len(values), len(headers)
     range_name = f"A1:{_col_letter(num_cols)}{num_rows}"
-    sheets.write_range(range_name, values, value_input_option="USER_ENTERED")
-    sheets.format_range_header(sheet_name=None, start_row=0, end_row=1, start_column=0, end_column=num_cols)
+    sheets.write_range(
+        range_name=range_name,
+        values=values,
+        sheet_name=sheet_name,
+        value_input_option="USER_ENTERED",
+    )
+    sheets.format_range_header(
+        sheet_name=sheet_name,
+        start_row=0,
+        end_row=1,
+        start_column=0,
+        end_column=num_cols,
+    )
 
-    return {"spreadsheet_id": spreadsheet_id, "webViewLink": web_view_link, "title": title}
+    return {"spreadsheet_id": spreadsheet_id, "webViewLink": web_view_link, "title": title_with_ts}
 
 
 @app.post("/export/clients")

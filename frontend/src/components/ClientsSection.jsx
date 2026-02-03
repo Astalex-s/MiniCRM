@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api } from '../api'
+import { api, formatExportError } from '../api'
 import { BsModal } from './BsModal'
 
 const statusBadge = (s) => {
@@ -122,7 +122,7 @@ export function ClientsSection() {
       {exportResult && (
         <div className={`alert m-3 mb-0 ${exportResult.error ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} role="alert">
           {exportResult.error ? (
-            exportResult.error
+            formatExportError(exportResult.error)
           ) : (
             <>
               Отчёт «{exportResult.title}» создан.{' '}

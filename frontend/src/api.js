@@ -15,6 +15,15 @@ async function request(method, path, body = null) {
   return text ? JSON.parse(text) : null
 }
 
+/** Понятное сообщение для ошибок экспорта в Google (например, квота Drive). */
+export function formatExportError(message) {
+  if (!message || typeof message !== 'string') return message
+  if (/storageQuotaExceeded|storage.?quota|quota.?exceeded/i.test(message)) {
+    return 'Квота хранилища Google Drive превышена. Освободите место в Drive или используйте другой аккаунт.'
+  }
+  return message
+}
+
 export const api = {
   // Клиенты
   clients: {
@@ -63,5 +72,17 @@ export const api = {
   settings: {
     getGoogle: () => request('GET', '/settings/google'),
     saveGoogle: (data) => request('POST', '/settings/google', data),
+    /** Загрузить JSON конфигурации в config/, вернёт { path } */
+    uploadGoogleFile: (file, target) => {
+      const form = new FormData()
+      form.append('file', file)
+      return fetch(`${API_BASE}/settings/google/upload?target=${encodeURIComponent(target)}`, {
+        method: 'POST',
+        body: form,
+      }).then((res) => {
+        if (!res.ok) return res.json().then((err) => { throw new Error(err.detail || res.statusText) })
+        return res.json()
+      })
+    },
   },
 }

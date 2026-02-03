@@ -397,6 +397,27 @@ class GoogleDriveUserClient:
             body["parents"] = [folder_id]
         return self._service.files().create(body=body, fields="id, name, mimeType, webViewLink").execute()
 
+    def share_file_with_email(
+        self,
+        file_id: str,
+        email_address: str,
+        role: str = "writer",
+    ) -> Dict[str, Any]:
+        """
+        Даёт доступ к файлу по email (например, сервисному аккаунту).
+        role: "writer" или "reader".
+        """
+        body = {
+            "role": role,
+            "type": "user",
+            "emailAddress": email_address,
+        }
+        return (
+            self._service.permissions()
+            .create(fileId=file_id, body=body, supportsAllDrives=True)
+            .execute()
+        )
+
 
 # ——— Точка входа: тест чтения списка файлов ———
 
