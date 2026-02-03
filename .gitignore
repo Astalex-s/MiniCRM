@@ -16,13 +16,8 @@ client_secret_307413857228-3ljotgjhgm59rd3fm8uqg4bnphugpa1g.apps.googleuserconte
 # OAuth2 токен пользователя (Drive)
 token_drive_user.json
 
-# Секреты в config/
-config/client_secret.json
-config/client_secret*.json
-config/token*.json
-config/*credentials*.json
-config/*service-account*.json
-config/*excel-factory*.json
+# Вся папка config (секреты, ключи, настройки)
+config/
 
 # Python
 __pycache__/
