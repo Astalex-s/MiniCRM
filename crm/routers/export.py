@@ -40,6 +40,10 @@ def export_clients(
             "CRM — Отчёт Клиенты", headers, rows, folder_id=folder_id,
             section="clients", rows_data=rows_data,
         )
+    except FileNotFoundError as e:
+        from log import get_logger
+        get_logger("crm.api").warning("Export clients (missing file): %s", e)
+        raise HTTPException(status_code=503, detail="Файл учётных данных не найден. Проверьте GOOGLE_CREDENTIALS_PATH или GOOGLE_CLIENT_SECRET_PATH в .env.")
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export clients: %s", e)
@@ -67,6 +71,10 @@ def export_deals(
             "CRM — Отчёт Сделки", headers, rows, folder_id=folder_id,
             section="deals", rows_data=rows_data,
         )
+    except FileNotFoundError as e:
+        from log import get_logger
+        get_logger("crm.api").warning("Export deals (missing file): %s", e)
+        raise HTTPException(status_code=503, detail="Файл учётных данных не найден. Проверьте GOOGLE_CREDENTIALS_PATH или GOOGLE_CLIENT_SECRET_PATH в .env.")
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export deals: %s", e)
@@ -94,6 +102,10 @@ def export_tasks(
             "CRM — Отчёт Задачи", headers, rows, folder_id=folder_id,
             section="tasks", rows_data=rows_data,
         )
+    except FileNotFoundError as e:
+        from log import get_logger
+        get_logger("crm.api").warning("Export tasks (missing file): %s", e)
+        raise HTTPException(status_code=503, detail="Файл учётных данных не найден. Проверьте GOOGLE_CREDENTIALS_PATH или GOOGLE_CLIENT_SECRET_PATH в .env.")
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("Export tasks: %s", e)
@@ -105,6 +117,10 @@ def list_files(section: str = Query(..., description="clients, deals или task
     try:
         items = list_export_files(section)
         return {"section": section, "files": items}
+    except FileNotFoundError as e:
+        from log import get_logger
+        get_logger("crm.api").warning("List export files (missing file): %s", e)
+        raise HTTPException(status_code=503, detail="Файл учётных данных не найден. Проверьте .env.")
     except Exception as e:
         from log import get_logger
         get_logger("crm.api").exception("List export files: %s", e)

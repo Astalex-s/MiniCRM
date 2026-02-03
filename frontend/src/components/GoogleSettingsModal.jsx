@@ -84,6 +84,14 @@ export function GoogleSettingsModal({ show, onClose }) {
 
   return (
     <BsModal show={show} onClose={onClose} title="Настройки Google (экспорт отчётов)">
+      <div className="alert alert-info small py-2 mb-3">
+        <strong>Что загружать:</strong> Нужен хотя бы один вариант доступа к Google.
+        <ul className="mb-0 mt-1 ps-3">
+          <li><strong>Сервисный аккаунт</strong> — JSON ключ из Google Cloud (Credentials → Service account → ключ). Загрузите файл ниже → в <code>.env</code> укажите <code>GOOGLE_CREDENTIALS_PATH=config/excel-factory.json</code>.</li>
+          <li><strong>Client secret</strong> — OAuth-ключ (Credentials → OAuth client ID, тип Desktop). Загрузите файл ниже → в <code>.env</code> укажите <code>GOOGLE_CLIENT_SECRET_PATH=config/client_secret.json</code>.</li>
+        </ul>
+        После изменения <code>.env</code> перезапустите приложение. Значения ниже берутся из <code>.env</code>.
+      </div>
       {loading ? (
         <div className="text-center py-4 text-muted">
           <div className="spinner-border" role="status"><span className="visually-hidden">Загрузка...</span></div>

@@ -15,11 +15,14 @@ async function request(method, path, body = null) {
   return text ? JSON.parse(text) : null
 }
 
-/** Понятное сообщение для ошибок экспорта в Google (например, квота Drive). */
+/** Понятное сообщение для ошибок экспорта в Google. */
 export function formatExportError(message) {
   if (!message || typeof message !== 'string') return message
   if (/storageQuotaExceeded|storage.?quota|quota.?exceeded/i.test(message)) {
     return 'Квота хранилища Google Drive превышена. Освободите место в Drive или используйте другой аккаунт.'
+  }
+  if (/учётных данных не найден|credentials|\.env/i.test(message)) {
+    return 'Файл учётных данных не найден. Задайте GOOGLE_CREDENTIALS_PATH или GOOGLE_CLIENT_SECRET_PATH в .env.'
   }
   return message
 }
